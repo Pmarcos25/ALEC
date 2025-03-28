@@ -1,0 +1,175 @@
+
+/**
+ * PSM Quantum Video Generator - Single File Deployment
+ * Copyright (c) 2024 Phelician Simon Mackosindeh
+ * All Rights Reserved
+ */
+
+import React, { useState, useRef, useEffect } from 'react';
+
+// ========== CORE SETUP ==========
+const PSM_VIDEO_GENERATOR = {
+  VERSION: "2.3.1",
+  LICENSE: "PSM-PROPRIETARY",
+  AUTHOR: "Phelician Simon Mackosindeh"
+};
+
+// ========== VIDEO ENGINE ==========
+class PSMVideoEngine {
+  constructor() {
+    this.ffmpeg = null;
+    this.status = "idle";
+  }
+
+  async init() {
+    try {
+      const { createFFmpeg } = await import('@ffmpeg/ffmpeg');
+      this.ffmpeg = createFFmpeg({ 
+        log: true,
+        corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js' 
+      });
+      await this.ffmpeg.load();
+      this.status = "ready";
+    } catch (error) {
+      console.error("PSM Engine Init Error:", error);
+      this.status = "error";
+    }
+  }
+
+  async generate(script, duration = 30) {
+    if (!this.ffmpeg || this.status !== "ready") return null;
+    
+    try {
+      this.ffmpeg.FS('writeFile', 'script.txt', new TextEncoder().encode(script));
+      
+      await this.ffmpeg.run(
+        '-f', 'lavfi', '-i', `color=c=blue:s=640x480:d=${duration}`,
+        '-vf', `drawtext=text='${script.substring(0,30)}':fontsize=20:x=10:y=H-th-10:fontcolor=white`,
+        '-c:a', 'aac', '-b:a', '128k', 'output.mp4'
+      );
+      
+      const data = this.ffmpeg.FS('readFile', 'output.mp4');
+      return URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+    } catch (error) {
+      console.error("PSM Generation Error:", error);
+      return null;
+    }
+  }
+}
+
+// ========== MAIN COMPONENT ==========
+export default function PSMVideoGenerator() {
+  const [script, setScript] = useState("");
+  const [video, setVideo] = useState(null);
+  const [status, setStatus] = useState("initializing");
+  const engine = useRef(new PSMVideoEngine());
+
+  useEffect(() => {
+    engine.current.init().then(() => {
+      setStatus("ready");
+    });
+  }, []);
+
+  const handleGenerate = async () => {
+    setStatus("generating");
+    const result = await engine.current.generate(script);
+    setVideo(result);
+    setStatus(result ? "completed" : "error");
+  };
+
+  return (
+    <div style={{
+      maxWidth: '800px',
+      margin: '0 auto',
+      padding: '20px',
+      fontFamily: 'Arial, sans-serif'
+    }}>
+      <h1 style={{ color: '#2c3e50', textAlign: 'center' }}>
+        {PSM_VIDEO_GENERATOR.AUTHOR}'s Video Generator
+      </h1>
+      
+      <div style={{
+        backgroundColor: '#f8f9fa',
+        padding: '20px',
+        borderRadius: '8px',
+        marginBottom: '20px'
+      }}>
+        <textarea
+          value={script}
+          onChange={(e) => setScript(e.target.value)}
+          placeholder="Enter your video script..."
+          style={{
+            width: '100%',
+            minHeight: '150px',
+            padding: '10px',
+            marginBottom: '10px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          }}
+        />
+        
+        <button
+          onClick={handleGenerate}
+          disabled={status !== "ready"}
+          style={{
+            backgroundColor: status === "ready" ? '#3498db' : '#95a5a6',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          {status === "initializing" ? "Loading Engine..." :
+           status === "ready" ? "Generate Video" :
+           status === "generating" ? "Processing..." :
+           status === "completed" ? "Generate Another" :
+           "Error - Try Again"}
+        </button>
+      </div>
+      
+      {video && (
+        <div style={{ marginTop: '20px' }}>
+          <video
+            controls
+            src={video}
+            style={{
+              width: '100%',
+              borderRadius: '8px',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+            }}
+          />
+          <p style={{
+            textAlign: 'center',
+            color: '#7f8c8d',
+            fontSize: '12px',
+            marginTop: '10px'
+          }}>
+            © {new Date().getFullYear()} {PSM_VIDEO_GENERATOR.AUTHOR} - v{PSM_VIDEO_GENERATOR.VERSION}
+          </p>
+        </div>
+      )}
+
+      <div style={{
+        marginTop: '30px',
+        padding: '15px',
+        backgroundColor: '#ecf0f1',
+        borderRadius: '8px',
+        fontSize: '12px',
+        color: '#34495e',
+        textAlign: 'center'
+      }}>
+        <strong>Proprietary Technology:</strong> This software is protected under international copyright laws.
+      </div>
+    </div>
+  );
+}
+
+// ========== AUTO-INITIALIZATION ==========
+if (typeof window !== 'undefined') {
+  console.log(
+    `%c${PSM_VIDEO_GENERATOR.AUTHOR}'s Video Generator ${PSM_VIDEO_GENERATOR.VERSION}`,
+    'color: #3498db; font-size: 14px; font-weight: bold;'
+  );
+}
